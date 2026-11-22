@@ -1,0 +1,29 @@
+# main と PR で、テストとビルド（警告ゼロ）を確認する
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: テスト
+        run: cargo test --locked
+
+      - name: ビルド
+        run: cargo build --release --locked

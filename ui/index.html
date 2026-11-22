@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamStatus for Twitch</title>
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 20 20" aria-hidden="true">
+        <rect class="brand-mark-card" x="1" y="1" width="18" height="18" rx="5"/>
+        <rect class="brand-mark-line" x="5" y="9" width="10" height="2" rx="1"/>
+        <rect class="brand-mark-sub" x="5" y="12.5" width="6" height="1.6" rx="0.8"/>
+        <circle class="brand-mark-lamp" cx="14.5" cy="5.5" r="1.6"/>
+      </svg>
+      <span class="brand-name">StreamStatus</span>
+      <span class="brand-sub">for Twitch</span>
+    </div>
+    <div class="topbar-end">
+      <button class="account" id="account-button" type="button" hidden>
+        <img class="avatar" id="account-avatar" alt="" width="24" height="24">
+        <span id="account-name"></span>
+      </button>
+      <button class="btn btn-secondary" id="login-button" type="button" hidden>ログイン</button>
+      <button class="icon-btn" id="settings-button" type="button" aria-label="設定" title="設定">
+        <svg class="i" aria-hidden="true"><use href="icons.svg#settings"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="now" aria-labelledby="now-heading">
+      <div class="section-head">
+        <h2 id="now-heading">いまの配信</h2>
+        <span class="meta push" id="now-fetched"></span>
+        <button class="icon-btn" id="now-refresh" type="button" aria-label="Twitch から読み直す" title="Twitch から読み直す（F5）" hidden>
+          <svg class="i" aria-hidden="true"><use href="icons.svg#refresh-cw"/></svg>
+        </button>
+      </div>
+      <div class="now-card" id="now-body"></div>
+    </section>
+
+    <section class="presets" aria-labelledby="presets-heading">
+      <div class="section-head">
+        <h2 id="presets-heading">プリセット</h2>
+        <span class="meta" id="preset-count"></span>
+        <button class="btn btn-secondary btn-sm push" id="add-preset" type="button">
+          <svg class="i" aria-hidden="true"><use href="icons.svg#plus"/></svg>
+          プリセットを追加
+        </button>
+      </div>
+      <ol class="preset-list" id="preset-list"></ol>
+      <div class="empty" id="preset-empty" hidden>
+        <p class="empty-title">プリセットはまだありません</p>
+        <p class="empty-text">よく使うタイトル・カテゴリ・タグを登録しておくと、配信前に1回押すだけで切り替えられます。タイトルに <code>{n}</code> を入れると、その場所に配信回数が入ります</p>
+        <button class="btn btn-primary" id="empty-add" type="button">最初のプリセットを作る</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- プリセットの編集 -->
+  <dialog class="sheet" id="editor" aria-labelledby="editor-title">
+    <form class="sheet-body" id="editor-form" method="dialog" novalidate>
+      <div class="sheet-head">
+        <h2 id="editor-title">プリセットを編集</h2>
+        <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg class="i" aria-hidden="true"><use href="icons.svg#x"/></svg></button>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><label for="f-title">タイトル</label><span class="meta" id="f-title-count"></span></div>
+        <input class="input" id="f-title" name="title" autocomplete="off" required>
+        <p class="hint" id="f-title-hint"><code>{n}</code> を入れると、その場所に配信回数が入ります</p>
+      </div>
+
+      <div class="field" id="f-count-field" hidden>
+        <div class="field-label"><label for="f-count">配信回数</label></div>
+        <div class="count-row">
+          <input class="input input-count" id="f-count" name="count" type="number" min="0" max="99999" inputmode="numeric">
+          <p class="hint">「適用」はこの回数、「加算して適用」は1つ進めた回数で反映します</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><label for="f-category">カテゴリ</label></div>
+        <div class="category-picked" id="f-category-picked" hidden></div>
+        <div class="combo" id="f-category-combo">
+          <svg class="i combo-icon" aria-hidden="true"><use href="icons.svg#search"/></svg>
+          <input class="input input-search" id="f-category" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f-category-list" autocomplete="off" placeholder="カテゴリを検索">
+          <ul class="combo-list" id="f-category-list" role="listbox" hidden></ul>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><label for="f-tag-input">タグ</label><span class="meta" id="f-tags-count"></span></div>
+        <div class="tag-input" id="f-tags">
+          <input id="f-tag-input" autocomplete="off" placeholder="タグを入力">
+        </div>
+        <p class="hint" id="f-tags-hint">Enter かカンマで追加。空白と半角記号は使えません</p>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><label for="f-memo">メモ</label><span class="meta" id="f-memo-count"></span></div>
+        <textarea class="input textarea" id="f-memo" name="memo" rows="2"></textarea>
+        <p class="hint">自分用の覚え書き。Twitch には送りません</p>
+      </div>
+
+      <p class="form-error" id="editor-error" role="alert" hidden></p>
+
+      <div class="sheet-foot">
+        <button class="btn btn-danger-quiet" id="editor-delete" type="button">削除</button>
+        <span class="push"></span>
+        <button class="btn btn-secondary" type="button" data-close>キャンセル</button>
+        <button class="btn btn-primary" id="editor-save" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 設定 -->
+  <dialog class="sheet sheet-wide" id="settings" aria-labelledby="settings-title">
+    <div class="sheet-body" tabindex="-1" autofocus>
+      <div class="sheet-head">
+        <h2 id="settings-title">設定</h2>
+        <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg class="i" aria-hidden="true"><use href="icons.svg#x"/></svg></button>
+      </div>
+
+      <section class="setting">
+        <h3>アカウント</h3>
+        <div class="setting-row" id="s-account"></div>
+      </section>
+
+      <section class="setting">
+        <h3 id="s-theme-label">表示モード</h3>
+        <div class="segmented" role="radiogroup" aria-labelledby="s-theme-label">
+          <label><input type="radio" name="theme" value="system"><span>OS に合わせる</span></label>
+          <label><input type="radio" name="theme" value="light"><span>ライト</span></label>
+          <label><input type="radio" name="theme" value="dark"><span>ダーク</span></label>
+        </div>
+      </section>
+
+      <section class="setting">
+        <h3>ウィンドウ</h3>
+        <label class="check"><input type="checkbox" id="s-close-to-tray"><span>× を押したらタスクトレイにしまう</span></label>
+        <p class="hint">しまったあとは、タスクトレイのアイコンから開くか終了できます</p>
+      </section>
+
+      <section class="setting">
+        <h3><label for="s-template">告知文のひな形</label></h3>
+        <textarea class="input textarea" id="s-template" rows="4"></textarea>
+        <div class="token-row" id="s-tokens" aria-label="差し込み"></div>
+        <div class="announce-preview">
+          <span class="meta">いまの内容で作ると</span>
+          <pre id="s-preview"></pre>
+        </div>
+      </section>
+
+      <section class="setting">
+        <h3>バックアップ</h3>
+        <div class="button-row">
+          <button class="btn btn-secondary" id="s-export" type="button"><svg class="i" aria-hidden="true"><use href="icons.svg#download"/></svg>すべて書き出す</button>
+          <button class="btn btn-secondary" id="s-import-append" type="button"><svg class="i" aria-hidden="true"><use href="icons.svg#upload"/></svg>読み込んで追加</button>
+          <button class="btn btn-secondary" id="s-import-replace" type="button">読み込んで置き換え</button>
+        </div>
+        <p class="hint">1件は .tsp、すべては .tsb で保存します。どちらも読み込めます</p>
+      </section>
+
+      <section class="setting">
+        <h3>このアプリ</h3>
+        <p class="about"><span>StreamStatus for Twitch</span> <span class="meta" id="s-version"></span></p>
+        <p class="hint">プリセットと設定は %APPDATA%\StreamStatus、ログイン情報は Windows の資格情報マネージャーに保存しています</p>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- ログイン -->
+  <dialog class="sheet" id="login" aria-labelledby="login-title">
+    <div class="sheet-body" tabindex="-1" autofocus>
+      <div class="sheet-head">
+        <h2 id="login-title">Twitch にログイン</h2>
+        <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg class="i" aria-hidden="true"><use href="icons.svg#x"/></svg></button>
+      </div>
+      <div id="login-body"></div>
+    </div>
+  </dialog>
+
+  <!-- 確認 -->
+  <dialog class="sheet sheet-narrow" id="confirm" aria-labelledby="confirm-title">
+    <div class="sheet-body" tabindex="-1" autofocus>
+      <h2 id="confirm-title"></h2>
+      <p class="confirm-text" id="confirm-text"></p>
+      <div class="sheet-foot">
+        <span class="push"></span>
+        <button class="btn btn-secondary" type="button" id="confirm-cancel">キャンセル</button>
+        <button class="btn btn-danger" type="button" id="confirm-ok"></button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="menu" id="card-menu" popover role="menu"></div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

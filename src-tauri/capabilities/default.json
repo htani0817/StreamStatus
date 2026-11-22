@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "メインウィンドウで使う権限。ファイル選択・ブラウザ起動は Rust 側だけで行うので、プラグインの JS 権限は渡さない",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
